@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Portfolio history (from DK CSV exports, JSON exports, or auto-saved live drafts) ──
+
+model Draft {
+  id           String   @id
+  contestName  String
+  entryFee     Float
+  draftedAt    DateTime
+  startingPick Int
+  totalTeams   Int
+  source       String   @default("csv") // "csv" | "json" | "live"
+  players      Player[]
+
+  @@map("drafts")
+}
+
+model Player {
+  id           String  @id @default(cuid())
+  name         String  // resolved canonical name where possible (e.g. "Justin Jefferson")
+  rawName      String? // original string from the source, e.g. "J. Jefferson"
+  team         String
+  position     String
+  draftedPick  Int
+  draftedRound Int
+  adpAtDraft   Float?
+  currentAdp   Float?
+  draftId      String
+  draft        Draft   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@map("players")
+  @@index([name])
+}
+
+model RawImport {
+  id         String   @id @default(cuid())
+  filename   String
+  importedAt DateTime @default(now())
+  rowCount   Int
+  rawData    String
+  importType String   @default("dk_draft") // dk_draft | draft_json | master_rankings | team_totals | positional_value
+
+  @@map("raw_imports")
+}
+
+// ─── Master player universe — name identity, ADP (both sites), bye weeks ─────
+// Sourced from a FantasyPros (or similar) multi-site ADP export. This is the
+// canonical player list the live draft assistant works from: "available
+// players" = this list minus whoever's been drafted, so no separate static
+// player database is needed.
+
+model MasterPlayer {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  team          String
+  position      String
+  bye           Int?
+  fpRank        Int?
+  underdogAdp   Float?
+  draftkingsAdp Float?
+  avgAdp        Float?
+  adpDelta      Float?
+  updatedAt     DateTime @updatedAt
+
+  @@index([team])
+  @@map("master_players")
+}
+
+// ─── Team-level Vegas data for weeks 15–17 (the best ball playoff window) ────
+// Keyed by team, not player — sidesteps player name-matching entirely.
+
+model TeamWeekProjection {
+  id                    String   @id @default(cuid())
+  team                  String   @unique
+  week15Opp             String?
+  week15TeamTotal       Float?
+  week15OU              Float?
+  week16Opp             String?
+  week16TeamTotal       Float?
+  week16OU              Float?
+  week17Opp             String?
+  week17TeamTotal       Float?
+  week17OU              Float?
+  projectedPlayoffTotal Float?
+  week18Opp             String?
+  week18TeamTotal       Float?
+  week18OU              Float?
+  updatedAt             DateTime @updatedAt
+
+  @@map("team_week_projections")
+}
+
+// "Beersheets"-style remaining positional value. Feature-flagged off until populated.
+model PositionalValue {
+  id         String   @id @default(cuid())
+  playerName String
+  position   String
+  value      Float
+  updatedAt  DateTime @updatedAt
+
+  @@unique([playerName, position])
+  @@map("positional_values")
+}
