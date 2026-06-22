@@ -30,13 +30,6 @@ function normalizePosition(raw: string): Position {
   return "FLEX";
 }
 
-/**
- * Infers { totalTeams, startingPick } from snake-draft round-pick notation.
- * Round 1's slot IS your starting pick (no reversal yet). For any later
- * round, slot1 + slot2 = totalTeams + 1 in a standard snake draft — so two
- * rounds of data is enough to solve for totalTeams exactly. Falls back to a
- * 12-team default if only one round is present.
- */
 function inferDraftShape(players: RawJsonPlayer[]): { totalTeams: number; startingPick: number } {
   const round1 = players.find((p) => p.roundPick.startsWith("1."));
   const round2 = players.find((p) => p.roundPick.startsWith("2."));
@@ -88,7 +81,7 @@ function parseOneDraft(raw: RawJsonDraft, nameIndex: PlayerNameIndex, errors: st
   return {
     id: raw.draftId,
     contestName,
-    entryFee: 0, // not present in this export format
+    entryFee: 0,
     draftedAt,
     startingPick,
     totalTeams,
@@ -97,25 +90,76 @@ function parseOneDraft(raw: RawJsonDraft, nameIndex: PlayerNameIndex, errors: st
   };
 }
 
-/**
- * Accepts either a single draft object or an array of them — so re-uploading
- * the same export shape later (one file per draft, or a combined array) both
- * work without the user needing to manually merge files.
- */
+function splitConcatenatedJsonObjects(text: string): string[] {
+  const objects: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === "\\" && inString) { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        objects.push(text.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return objects;
+}
+
+function extractRawDrafts(parsed: unknown): RawJsonDraft[] {
+  if (Array.isArray(parsed)) return parsed as RawJsonDraft[];
+
+  if (parsed && typeof parsed === "object") {
+    const obj = parsed as Record<string, unknown>;
+    for (const key of ["drafts", "draftHistory", "sessions", "data"]) {
+      if (Array.isArray(obj[key])) return obj[key] as RawJsonDraft[];
+    }
+    return [obj as unknown as RawJsonDraft];
+  }
+
+  return [];
+}
+
 export function parseDraftJSON(
   jsonText: string,
   nameIndex: PlayerNameIndex
 ): { drafts: NormalizedDraft[]; errors: string[] } {
   const errors: string[] = [];
-  let parsed: unknown;
+  let rawDrafts: RawJsonDraft[] = [];
 
   try {
-    parsed = JSON.parse(jsonText);
-  } catch (err) {
-    return { drafts: [], errors: [`Invalid JSON: ${String(err)}`] };
+    rawDrafts = extractRawDrafts(JSON.parse(jsonText));
+  } catch {
+    const chunks = splitConcatenatedJsonObjects(jsonText);
+    if (chunks.length === 0) {
+      return { drafts: [], errors: ["Couldn't parse this as JSON at all — check the file isn't corrupted or truncated."] };
+    }
+    for (const chunk of chunks) {
+      try {
+        rawDrafts.push(JSON.parse(chunk) as RawJsonDraft);
+      } catch (err) {
+        errors.push(`Skipped one block that wasn't valid JSON on its own: ${String(err)}`);
+      }
+    }
   }
 
-  const rawDrafts: RawJsonDraft[] = Array.isArray(parsed) ? parsed : [parsed as RawJsonDraft];
+  if (rawDrafts.length === 0) {
+    errors.push("Couldn't find any draft objects in this file.");
+  }
 
   const drafts: NormalizedDraft[] = [];
   for (const raw of rawDrafts) {
