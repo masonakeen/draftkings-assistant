@@ -8,20 +8,26 @@ interface StatPillProps {
   emphasis?: boolean;
 }
 
+/**
+ * Stat block — label on top, value below. Sized for easy reading at a glance.
+ */
 export function StatPill({ label, value, colorHex, title, emphasis }: StatPillProps) {
+  const color = colorHex ?? "#9099b0";
   return (
-    <span
+    <div
       title={title}
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] leading-none whitespace-nowrap ${
-        emphasis ? "font-bold" : "font-medium"
-      }`}
-      style={{
-        color: colorHex ?? "#888",
-        background: colorHex ? `${colorHex}1a` : "#1e1e2e",
-      }}
+      className="flex flex-col items-center justify-center rounded-lg px-3 py-2 min-w-[56px]"
+      style={{ background: `${color}18`, border: `1px solid ${color}30` }}
     >
-      <span className="opacity-60">{label}</span>
-      <span>{value}</span>
-    </span>
+      <span className="text-[10px] font-medium uppercase tracking-wide leading-none mb-1" style={{ color: "#9099b0" }}>
+        {label}
+      </span>
+      <span
+        className={`text-sm leading-none tabular-nums ${emphasis ? "font-bold" : "font-semibold"}`}
+        style={{ color }}
+      >
+        {value}
+      </span>
+    </div>
   );
 }

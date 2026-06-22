@@ -8,7 +8,11 @@ const BRIDGE_HTTP = "http://localhost:4001";
 const BRIDGE_WS = "ws://localhost:4001";
 
 const POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "FLEX", "DST", "K"];
-const POS_COLORS: Record<Position, string> = { QB: "#ef4444", RB: "#22c55e", WR: "#3b82f6", TE: "#f59e0b", FLEX: "#a855f7", K: "#6b7280", DST: "#14b8a6" };
+
+const POS_COLORS: Record<Position, string> = {
+  QB: "#f87171", RB: "#4ade80", WR: "#60a5fa",
+  TE: "#fbbf24", FLEX: "#c084fc", K: "#94a3b8", DST: "#2dd4bf",
+};
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
@@ -36,9 +40,7 @@ export function LiveBoard() {
           setState(msg.state);
           setRecommended(msg.recommended);
         }
-      } catch {
-        /* ignore malformed payloads */
-      }
+      } catch { /* ignore */ }
     };
 
     ws.onclose = () => {
@@ -73,7 +75,9 @@ export function LiveBoard() {
     if (posFilter !== "ALL") list = list.filter((p) => p.position === posFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((p) => p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q));
+      list = list.filter((p) =>
+        p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q)
+      );
     }
     return list;
   }, [recommended, posFilter, search]);
@@ -85,60 +89,95 @@ export function LiveBoard() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="shrink-0 px-3 py-2 border-b border-[#1e1e2e] bg-[#0d0d18]">
+    <div className="flex flex-col h-full" style={{ background: "var(--background)" }}>
+
+      {/* ── Status bar ── */}
+      <div
+        className="shrink-0 px-4 py-2.5"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
+      >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                status === "connected" ? "bg-[#53d08a] animate-pulse" : status === "connecting" ? "bg-amber-400" : "bg-red-500"
-              }`}
+              className="h-2 w-2 rounded-full"
+              style={{
+                background:
+                  status === "connected" ? "#4ade80" :
+                  status === "connecting" ? "#fbbf24" : "#f87171",
+                boxShadow:
+                  status === "connected" ? "0 0 6px #4ade8088" : "none",
+              }}
             />
-            <span className="text-[10px] text-[#888]">
-              {status === "connected" ? "Bridge connected" : status === "connecting" ? "Connecting…" : "Bridge offline"}
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+              {status === "connected" ? "Bridge connected" :
+               status === "connecting" ? "Connecting…" : "Bridge offline"}
             </span>
           </div>
+
           {state && state.picks.length > 0 && (
-            <button onClick={sendReset} className="text-[10px] text-[#555] hover:text-red-400 transition-colors">
-              Reset session
+            <button
+              onClick={sendReset}
+              className="text-xs transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+            >
+              Reset
             </button>
           )}
         </div>
 
         {status === "disconnected" && (
-          <p className="text-[10px] text-amber-400 mt-1">
-            Run <code className="text-[#888]">npm run bridge</code> in the project folder.
+          <p className="text-xs mt-1" style={{ color: "#fbbf24" }}>
+            Run <code className="font-mono">npm run bridge</code> in the project folder.
           </p>
         )}
 
-        {state && (
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-xs font-medium text-white truncate">
-              {state.contestName ?? "No draft detected yet"}
-            </span>
-            {state.isOnTheClock && (
-              <span className="text-[10px] font-bold text-[#0a0a14] bg-[#53d08a] px-1.5 py-0.5 rounded">
-                ON THE CLOCK
-              </span>
-            )}
+        {state?.contestName && (
+          <p className="text-sm font-semibold mt-1 truncate" style={{ color: "var(--text-primary)" }}>
+            {state.contestName}
+          </p>
+        )}
+
+        {state?.isOnTheClock && (
+          <div
+            className="mt-2 rounded-lg px-3 py-1.5 text-center text-sm font-bold tracking-wide"
+            style={{ background: "#4ade8022", color: "#4ade80", border: "1px solid #4ade8044" }}
+          >
+            🕐 ON THE CLOCK
           </div>
         )}
       </div>
 
-      <div className="shrink-0 px-3 py-2 border-b border-[#1e1e2e] space-y-2">
+      {/* ── Search + position filter ── */}
+      <div
+        className="shrink-0 px-4 py-3 space-y-2.5"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
+      >
         <input
           type="text"
-          placeholder="Search…"
+          placeholder="Search players or teams…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-md bg-[#12121c] border border-[#1e1e2e] px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-[#53d08a]/50"
+          className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors"
+          style={{
+            background: "var(--surface-raised)",
+            border: "1px solid var(--border)",
+            color: "var(--text-primary)",
+          }}
+          onFocus={(e) => (e.currentTarget.style.borderColor = "#4ade8066")}
+          onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
         />
-        <div className="flex gap-1 overflow-x-auto pb-0.5">
+
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
           <button
             onClick={() => setPosFilter("ALL")}
-            className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-              posFilter === "ALL" ? "bg-[#53d08a] text-black" : "bg-[#12121c] border border-[#1e1e2e] text-[#888]"
-            }`}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+            style={
+              posFilter === "ALL"
+                ? { background: "#4ade80", color: "#0a0f0a" }
+                : { background: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text-secondary)" }
+            }
           >
             ALL
           </button>
@@ -146,10 +185,12 @@ export function LiveBoard() {
             <button
               key={pos}
               onClick={() => setPosFilter(pos)}
-              className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                posFilter === pos ? "text-black" : "bg-[#12121c] border border-[#1e1e2e] text-[#888]"
-              }`}
-              style={posFilter === pos ? { background: POS_COLORS[pos] } : {}}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              style={
+                posFilter === pos
+                  ? { background: POS_COLORS[pos], color: "#0a0f0a" }
+                  : { background: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text-secondary)" }
+              }
             >
               {pos}
             </button>
@@ -157,24 +198,37 @@ export function LiveBoard() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
+      {/* ── Player list ── */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
         {filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-center px-4">
-            <p className="text-xs text-[#555]">
+          <div className="flex items-center justify-center h-40 text-center px-6">
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               {status !== "connected"
                 ? "Waiting for bridge connection…"
                 : recommended.length === 0
-                ? "No live draft detected. Open the DK best ball draft board in your browser."
+                ? "No draft data yet. Import your rankings CSV and open a DK draft room."
                 : "No players match your filters."}
             </p>
           </div>
         ) : (
-          filtered.map((p) => <PlayerCard key={`${p.name}-${p.team}`} player={p} showPositionalValue={showPositionalValue} />)
+          filtered.map((p) => (
+            <PlayerCard
+              key={`${p.name}-${p.team}`}
+              player={p}
+              showPositionalValue={showPositionalValue}
+            />
+          ))
         )}
       </div>
 
-      <div className="shrink-0 px-3 py-1.5 border-t border-[#1e1e2e] text-center">
-        <span className="text-[10px] text-[#555]">{filtered.length} available · sorted by ADP</span>
+      {/* ── Footer ── */}
+      <div
+        className="shrink-0 px-4 py-2 text-center"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {filtered.length} available · sorted by ADP
+        </span>
       </div>
     </div>
   );

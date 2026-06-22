@@ -1,21 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
+ 
 :root {
-  --background: #0a0a14;
-  --foreground: #e8e8f0;
+  --background: #111318;
+  --surface: #1a1d24;
+  --surface-raised: #21252e;
+  --border: #2c3040;
+  --border-subtle: #232733;
+  --text-primary: #f0f2f7;
+  --text-secondary: #9099b0;
+  --text-muted: #555e72;
+  --accent: #4ade80;
 }
-
+ 
 * { box-sizing: border-box; }
-
+ 
 html, body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--text-primary);
+  /* System sans-serif — legible, not a terminal */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
-
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0a0a14; }
-::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2a2a3a; }
+ 
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4055; }
+ 
