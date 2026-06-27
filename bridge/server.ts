@@ -1,13 +1,3 @@
-/**
- * Standalone bridge process — run alongside `npm run dev` via `npm run
- * bridge` (or `npm run dev:all` for both together).
- *
- * Protocol from the extension is intentionally simple: it sends a full
- * re-scan of the draft board grid ("board_snapshot") whenever something
- * changes. The grid tops out around 240 cells, so resending everything each
- * time is cheap and far more robust than trying to incrementally diff a
- * React-virtualized DOM.
- */
 import "dotenv/config";
 import http from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -43,18 +33,35 @@ function normalizePosition(raw: string): Position {
 }
 
 // ─── Cached master player list + name index ───────────────────────────────────
-// Rebuilt periodically rather than per-snapshot — name resolution doesn't
-// need to be real-time-fresh, and this avoids hammering SQLite during a fast
-// run of picks.
 
 let masterPlayers: MasterPlayerLite[] = [];
 let nameIndex: PlayerNameIndex = buildPlayerNameIndex([]);
 let masterPlayerRaw: Awaited<ReturnType<typeof prisma.masterPlayer.findMany>> = [];
 
+// ─── W17 matchup map: normalizedTeam -> normalizedOpponent ───────────────────
+// Derived from TeamWeekProjection.week17Opp — no extra file needed.
+let week17MatchupMap = new Map<string, string>(); // "SF" -> "PHI"
+
 async function refreshMasterPlayers() {
   masterPlayerRaw = await prisma.masterPlayer.findMany();
-  masterPlayers = masterPlayerRaw.map((m: { name: string; team: string; position: string }) => ({ name: m.name, team: m.team, position: m.position }));
+  masterPlayers = masterPlayerRaw.map((m: { name: string; team: string; position: string }) => ({
+    name: m.name, team: m.team, position: m.position,
+  }));
   nameIndex = buildPlayerNameIndex(masterPlayers);
+
+  // Rebuild W17 matchup map
+  const projections = await prisma.teamWeekProjection.findMany({
+    select: { team: true, week17Opp: true },
+  });
+  week17MatchupMap = new Map();
+  for (const p of projections) {
+    if (p.week17Opp) {
+      const opp = normalizeTeamCode(p.week17Opp);
+      // Force both key and value to uppercase so lookups never silently miss
+      week17MatchupMap.set(p.team.toUpperCase(), opp.toUpperCase());
+    }
+  }
+  console.log(`[bridge] W17 matchups: ${week17MatchupMap.size} loaded`, Object.fromEntries(week17MatchupMap));
 }
 
 // ─── Recommendation engine ────────────────────────────────────────────────────
@@ -62,6 +69,19 @@ async function refreshMasterPlayers() {
 async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
   const draftedNames = draftSession.getDraftedPlayerNames();
   const myRosterNames = draftSession.getMyRosterNames();
+
+  // Build: myTeamCounts — how many of my live picks are on each team
+  const myRoster = draftSession.getState().myRoster;
+  const myTeamCounts = new Map<string, number>();
+  for (const pick of myRoster) {
+    const t = pick.team.toUpperCase();
+    myTeamCounts.set(t, (myTeamCounts.get(t) ?? 0) + 1);
+  }
+console.log(`[bridge] my roster (${myRoster.length} picks):`, myRoster.map(p => `${p.playerName}(${p.team})`));
+console.log(`[bridge] team counts:`, Object.fromEntries(myTeamCounts));
+
+  // Build: set of teams I have players on (for W17 bring-back check)
+  const myTeams = new Set(myRoster.map((p) => p.team.toUpperCase()));
 
   const [dbDrafts, teamProjections, positionalValues] = await Promise.all([
     prisma.draft.findMany({ include: { players: true } }),
@@ -78,15 +98,9 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
     totalTeams: d.totalTeams,
     players: d.players.map(
       (p: any): NormalizedPlayer => ({
-        id: p.id,
-        name: p.name,
-        team: p.team,
-        position: p.position as Position,
-        draftedPick: p.draftedPick,
-        draftedRound: p.draftedRound,
-        adpAtDraft: p.adpAtDraft,
-        currentAdp: p.currentAdp,
-        draftId: p.draftId,
+        id: p.id, name: p.name, team: p.team, position: p.position as Position,
+        draftedPick: p.draftedPick, draftedRound: p.draftedRound,
+        adpAtDraft: p.adpAtDraft, currentAdp: p.currentAdp, draftId: p.draftId,
       })
     ),
   }));
@@ -115,7 +129,7 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
     value: v.value,
   }));
 
-  const myRosterSlots: RosterSlot[] = draftSession.getState().myRoster.map((p) => ({
+  const myRosterSlots: RosterSlot[] = myRoster.map((p) => ({
     name: p.playerName,
     team: p.team,
     position: p.position,
@@ -128,19 +142,19 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
     const nameLower = mp.name.toLowerCase();
     if (draftedNames.has(nameLower)) continue;
 
-    const team = teamProjByTeam.get(mp.team);
+    const team = teamProjByTeam.get(mp.team) as any;
     const playoffOUs = [team?.week15OU, team?.week16OU, team?.week17OU].filter(
-      (v): v is number => v !== null && v !== undefined
+      (v: any): v is number => v !== null && v !== undefined
     );
     const playoffTotalOU = playoffOUs.length > 0
-      ? Math.round((playoffOUs.reduce((s, v) => s + v, 0) / playoffOUs.length) * 10) / 10
+      ? Math.round((playoffOUs.reduce((s: number, v: number) => s + v, 0) / playoffOUs.length) * 10) / 10
       : null;
 
     const teamTotals = [team?.week15TeamTotal, team?.week16TeamTotal, team?.week17TeamTotal].filter(
-      (v): v is number => v !== null && v !== undefined
+      (v: any): v is number => v !== null && v !== undefined
     );
     const impliedTeamTotal = teamTotals.length > 0
-      ? Math.round((teamTotals.reduce((s, v) => s + v, 0) / teamTotals.length) * 10) / 10
+      ? Math.round((teamTotals.reduce((s: number, v: number) => s + v, 0) / teamTotals.length) * 10) / 10
       : null;
 
     const position = normalizePosition(mp.position);
@@ -149,12 +163,20 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
       myRosterSlots
     );
 
+    // ── Stack badge: how many of my live picks are already on this player's team
+    const stackCount = myTeamCounts.get(mp.team.toUpperCase()) ?? 0;
+
+    // ── W17 bring-back: does this player's team face one of MY teams in W17?
+    const w17Opp = week17MatchupMap.get(mp.team.toUpperCase()) ?? null;
+    const week17BringBack = w17Opp !== null && myTeams.has(w17Opp);
+
     recommended.push({
       name: mp.name,
       team: mp.team,
       position,
       adp: mp.draftkingsAdp,
-      adpTrend: null, // needs ADP history over time — future upgrade once live pool panel is wired up
+      dkAdp: mp.draftkingsAdp,
+      adpTrend: null,
       playoffTotalOU,
       week17OU: team?.week17OU ?? null,
       impliedTeamTotal,
@@ -165,11 +187,12 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
       byeConflict: conflict,
       underdogAdp: mp.underdogAdp,
       adpDelta: mp.adpDelta,
+      stackCount,
+      week17BringBack,
+      week17Opponent: w17Opp,
     });
   }
 
-  // Default sort: ADP ascending. Swap out later for a custom scoring function
-  // without touching anything upstream.
   recommended.sort((a, b) => {
     if (a.adp === null) return 1;
     if (b.adp === null) return -1;
@@ -179,7 +202,7 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
   return recommended;
 }
 
-// ─── Auto-save completed drafts into portfolio history ───────────────────────
+// ─── Auto-save completed live drafts ─────────────────────────────────────────
 
 async function saveCompletedDraftToHistory() {
   const state = draftSession.getState();
@@ -215,8 +238,7 @@ async function saveCompletedDraftToHistory() {
       },
     },
   });
-
-  console.log(`[bridge] Auto-saved completed live draft ${draftId} to portfolio history`);
+  console.log(`[bridge] Auto-saved live draft ${draftId}`);
 }
 
 // ─── WebSocket hub ────────────────────────────────────────────────────────────
@@ -281,21 +303,15 @@ wss.on("connection", async (ws) => {
   clients.add(ws);
   console.log(`[bridge] client connected (${clients.size} total)`);
 
-  ws.send(
-    JSON.stringify({
-      type: "state_update",
-      state: draftSession.getState(),
-      recommended: await computeRecommendedPlayers(),
-    })
-  );
+  ws.send(JSON.stringify({
+    type: "state_update",
+    state: draftSession.getState(),
+    recommended: await computeRecommendedPlayers(),
+  }));
 
   ws.on("message", async (raw) => {
     let msg: any;
-    try {
-      msg = JSON.parse(raw.toString());
-    } catch {
-      return;
-    }
+    try { msg = JSON.parse(raw.toString()); } catch { return; }
 
     switch (msg.type) {
       case "board_snapshot": {
@@ -307,33 +323,21 @@ wss.on("connection", async (ws) => {
           rosterSize: msg.rosterSize,
           picks: resolvedPicks,
         });
-
-        if (draftSession.isComplete()) {
-          await saveCompletedDraftToHistory();
-        }
+        if (draftSession.isComplete()) await saveCompletedDraftToHistory();
         break;
       }
-
-      case "on_the_clock": {
+      case "on_the_clock":
         draftSession.setOnTheClock(Boolean(msg.isOnTheClock));
         break;
-      }
-
-      case "reset_session": {
+      case "reset_session":
         draftSession.reset();
         break;
-      }
-
-      case "refresh_master_players": {
+      case "refresh_master_players":
         await refreshMasterPlayers();
         break;
-      }
-
       default:
-        console.warn("[bridge] unknown message type:", msg.type);
         return;
     }
-
     await broadcastState();
   });
 
@@ -346,9 +350,7 @@ wss.on("connection", async (ws) => {
 server.listen(PORT, async () => {
   await refreshMasterPlayers();
   console.log(`[bridge] listening on ws://localhost:${PORT}`);
-  console.log(`[bridge] loaded ${masterPlayers.length} master players`);
-  console.log(`[bridge] positional value feature flag: ${POSITIONAL_VALUE_ENABLED ? "ON" : "OFF"}`);
-
+  console.log(`[bridge] ${masterPlayers.length} players, ${week17MatchupMap.size} W17 matchups loaded`);
   setInterval(refreshMasterPlayers, MASTER_PLAYER_REFRESH_MS);
 });
 

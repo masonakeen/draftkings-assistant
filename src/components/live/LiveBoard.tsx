@@ -22,9 +22,11 @@ export function LiveBoard() {
   const [recommended, setRecommended] = useState<RecommendedPlayer[]>([]);
   const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
   const [search, setSearch] = useState("");
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connect = useCallback(() => {
     setStatus((s) => (s === "connected" ? s : "connecting"));
@@ -66,6 +68,7 @@ export function LiveBoard() {
 
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
       wsRef.current?.close();
     };
   }, [connect]);
@@ -84,69 +87,95 @@ export function LiveBoard() {
 
   const showPositionalValue = recommended.some((p) => p.positionalValue !== null);
 
-  const sendReset = () => {
+  const handleResetClick = () => {
+    if (!resetConfirm) {
+      // First click — show confirmation state for 3 seconds
+      setResetConfirm(true);
+      resetConfirmTimer.current = setTimeout(() => setResetConfirm(false), 3000);
+      return;
+    }
+    // Second click within 3s — actually reset
+    setResetConfirm(false);
+    if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
     wsRef.current?.send(JSON.stringify({ type: "reset_session" }));
   };
+
+  const pickCount = state?.picks.length ?? 0;
+  const myPickCount = state?.myRoster.length ?? 0;
 
   return (
     <div className="flex flex-col h-full" style={{ background: "var(--background)" }}>
 
       {/* ── Status bar ── */}
       <div
-        className="shrink-0 px-4 py-2.5"
+        className="shrink-0 px-4 py-3"
         style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
       >
-        <div className="flex items-center justify-between">
+        {/* Connection row */}
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span
-              className="h-2 w-2 rounded-full"
+              className="h-2 w-2 rounded-full shrink-0"
               style={{
                 background:
                   status === "connected" ? "#4ade80" :
                   status === "connecting" ? "#fbbf24" : "#f87171",
-                boxShadow:
-                  status === "connected" ? "0 0 6px #4ade8088" : "none",
+                boxShadow: status === "connected" ? "0 0 6px #4ade8088" : "none",
               }}
             />
             <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
               {status === "connected" ? "Bridge connected" :
-               status === "connecting" ? "Connecting…" : "Bridge offline"}
+               status === "connecting" ? "Connecting…" : "Bridge offline — run npm run bridge"}
             </span>
           </div>
 
-          {state && state.picks.length > 0 && (
+          {/* Reset button — always visible when connected */}
+          {status === "connected" && (
             <button
-              onClick={sendReset}
-              className="text-xs transition-colors"
-              style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+              onClick={handleResetClick}
+              className="text-xs font-medium px-2.5 py-1 rounded-md transition-all"
+              style={
+                resetConfirm
+                  ? { background: "#f8717122", border: "1px solid #f87171", color: "#f87171" }
+                  : { background: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text-muted)" }
+              }
+              title="Clears the current live draft session (does not affect your draft history)"
             >
-              Reset
+              {resetConfirm ? "Confirm reset?" : "Reset session"}
             </button>
           )}
         </div>
 
-        {status === "disconnected" && (
-          <p className="text-xs mt-1" style={{ color: "#fbbf24" }}>
-            Run <code className="font-mono">npm run bridge</code> in the project folder.
-          </p>
-        )}
-
-        {state?.contestName && (
-          <p className="text-sm font-semibold mt-1 truncate" style={{ color: "var(--text-primary)" }}>
+        {/* Draft info row */}
+        {state?.contestName ? (
+          <p className="text-sm font-semibold truncate mb-1" style={{ color: "var(--text-primary)" }}>
             {state.contestName}
           </p>
+        ) : (
+          <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+            No draft detected — open a DK draft room with the extension active
+          </p>
         )}
 
-        {state?.isOnTheClock && (
-          <div
-            className="mt-2 rounded-lg px-3 py-1.5 text-center text-sm font-bold tracking-wide"
-            style={{ background: "#4ade8022", color: "#4ade80", border: "1px solid #4ade8044" }}
-          >
-            🕐 ON THE CLOCK
-          </div>
-        )}
+        {/* Pick counters */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+            {pickCount} picks made
+          </span>
+          {myPickCount > 0 && (
+            <span className="text-xs tabular-nums" style={{ color: "#4ade80" }}>
+              {myPickCount} on my roster
+            </span>
+          )}
+          {state?.isOnTheClock && (
+            <span
+              className="ml-auto text-xs font-bold px-2 py-0.5 rounded"
+              style={{ background: "#4ade8022", color: "#4ade80", border: "1px solid #4ade8044" }}
+            >
+              ON THE CLOCK
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Search + position filter ── */}
@@ -206,7 +235,7 @@ export function LiveBoard() {
               {status !== "connected"
                 ? "Waiting for bridge connection…"
                 : recommended.length === 0
-                ? "No draft data yet. Import your rankings CSV and open a DK draft room."
+                ? "No player data yet. Import your master rankings CSV on the dashboard first."
                 : "No players match your filters."}
             </p>
           </div>

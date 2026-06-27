@@ -1,5 +1,3 @@
-// ─── Normalized domain types ─────────────────────────────────────────────────
-
 export type Position = "QB" | "RB" | "WR" | "TE" | "FLEX" | "K" | "DST";
 
 export interface NormalizedDraft {
@@ -15,8 +13,8 @@ export interface NormalizedDraft {
 
 export interface NormalizedPlayer {
   id: string;
-  name: string;       // resolved canonical name where possible
-  rawName?: string;    // original string from the source, e.g. "J. Jefferson"
+  name: string;
+  rawName?: string;
   team: string;
   position: Position;
   draftedPick: number;
@@ -25,8 +23,6 @@ export interface NormalizedPlayer {
   currentAdp: number | null;
   draftId: string;
 }
-
-// ─── Analytics types ──────────────────────────────────────────────────────────
 
 export interface PlayerExposure {
   name: string;
@@ -55,8 +51,6 @@ export interface PortfolioStats {
   dateRange: { earliest: Date; latest: Date } | null;
 }
 
-// ─── CSV row types (DK draft history import) ─────────────────────────────────
-
 export interface RawDKRow {
   [key: string]: string;
 }
@@ -67,16 +61,14 @@ export interface ParsedCSVResult {
   errors: string[];
 }
 
-// ─── Live draft assistant types ──────────────────────────────────────────────
-
 export interface LiveDraftPick {
-  playerName: string;     // resolved canonical name
-  rawName?: string;        // raw text scraped off the board, e.g. "J. Gibbs"
+  playerName: string;
+  rawName?: string;
   team: string;
   position: Position;
   pickNumber: number;
   pickedByMe: boolean;
-  pickedAt: string; // ISO
+  pickedAt: string;
 }
 
 export interface LiveDraftState {
@@ -92,29 +84,36 @@ export interface LiveDraftState {
   updatedAt: string;
 }
 
-// One row in the live recommended-players sidebar
 export interface RecommendedPlayer {
   name: string;
   team: string;
   position: Position;
 
-  adp: number | null;          // DraftKings ADP (from master rankings; live-board ADP is a future upgrade)
-  adpTrend: number | null;     // negative = rising (good), positive = falling
+  adp: number | null;          // DK ADP from master rankings CSV
+  dkAdp: number | null;        // DK ADP from new dedicated DK ADP CSV (portfolio analytics)
+  adpTrend: number | null;
 
-  playoffTotalOU: number | null; // avg of weeks 15+16+17 game O/U (same scale as week17OU)
+  playoffTotalOU: number | null;
   week17OU: number | null;
-  impliedTeamTotal: number | null; // avg team total across weeks 15-17
+  impliedTeamTotal: number | null;
 
   personalExposure: number | null;
   correlationFlag: CorrelationFlag | null;
 
-  positionalValue: number | null; // feature-flagged
+  positionalValue: number | null;
 
   byeWeek: number | null;
   byeConflict: boolean;
 
   underdogAdp: number | null;
-  adpDelta: number | null; // dkAdp - underdogAdp; negative = UD's number is bigger, positive = DK's is bigger
+  adpDelta: number | null;
+
+  // Stack badge: how many of your live-draft roster are on the same team
+  stackCount: number;
+
+  // Week 17 bring-back: your W17 opponent has players on your roster
+  week17BringBack: boolean;
+  week17Opponent: string | null;
 }
 
 export interface CorrelationFlag {

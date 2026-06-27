@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ImportDropzone } from "@/components/ImportDropzone";
 import { ExposureTable } from "@/components/ExposureTable";
 import { StatsCards } from "@/components/StatsCards";
+import { SyncDraftHistoryButton } from "@/components/SyncDraftHistoryButton";
 import type { PlayerExposure, PortfolioStats } from "@/types";
 
 interface AnalyticsData {
@@ -81,29 +82,34 @@ export default function DashboardPage() {
               <div className="grid sm:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-sm font-semibold mb-1">Master Player Rankings</h3>
-                  <p className="text-xs text-[#555] mb-3">FantasyPros-style multi-site ADP export. Powers DK/Underdog ADP, the delta, and bye weeks — import this first.</p>
+                  <p className="text-xs text-[#555] mb-3">FantasyPros-style CSV. Powers DK/Underdog ADP, ADP delta, bye weeks. Import this first.</p>
                   <ImportDropzone endpoint="/api/import/master-rankings" label="Drop rankings CSV" hint="Rank, Player, Team, Bye, POS, Underdog, DraftKings, AVG" onImportComplete={fetchAnalytics} />
                 </div>
                 <div>
+                  <h3 className="text-sm font-semibold mb-1">DK ADP (portfolio analytics)</h3>
+                  <p className="text-xs text-[#555] mb-3">Separate DK ADP file. Does not overwrite Underdog ADP or delta.</p>
+                  <ImportDropzone endpoint="/api/import/dk-adp" label="Drop DK ADP CSV" hint="Player, Pos, Team, Bye, ADP, ADP Round, ..." onImportComplete={fetchAnalytics} />
+                </div>
+                <div>
                   <h3 className="text-sm font-semibold mb-1">Vegas Team Totals (Wk 15–17)</h3>
-                  <p className="text-xs text-[#555] mb-3">Team-keyed — no name matching needed. Powers O/U and implied team total.</p>
+                  <p className="text-xs text-[#555] mb-3">Team-keyed. Powers O/U, implied team total, and W17 bring-back detection.</p>
                   <ImportDropzone endpoint="/api/import/team-totals" label="Drop team totals CSV" hint="Team, W15_OU, W15_TeamTotal, W16_..., W17_..." onImportComplete={fetchAnalytics} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold mb-1">Past Draft History (JSON)</h3>
-                  <p className="text-xs text-[#555] mb-3">Powers personal exposure + correlation. Import rankings first — names get resolved against it.</p>
-                  <ImportDropzone endpoint="/api/import/draft-json" label="Drop draft history JSON" hint="One draft object, or an array of them" accept=".json" onImportComplete={fetchAnalytics} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold mb-1">Past Draft History (DK CSV)</h3>
-                  <p className="text-xs text-[#555] mb-3">Alternative to the JSON above, if that's the export format you have.</p>
-                  <ImportDropzone endpoint="/api/import" label="Drop DK draft export CSV" hint="DraftKings → Best Ball → Export" onImportComplete={fetchAnalytics} />
-                </div>
-                <div>
                   <h3 className="text-sm font-semibold mb-1">Positional Value (Beersheets)</h3>
-                  <p className="text-xs text-[#555] mb-3">Feature-flagged off in the live assistant until populated.</p>
+                  <p className="text-xs text-[#555] mb-3">Feature-flagged off until populated.</p>
                   <ImportDropzone endpoint="/api/import/positional-value" label="Drop positional value CSV" hint="player_name, position, value" onImportComplete={fetchAnalytics} />
                 </div>
+              </div>
+
+              {/* Draft history sync — reads local data/draft_history.json */}
+              <div>
+                <h3 className="text-sm font-semibold mb-1">Draft History</h3>
+                <p className="text-xs text-[#555] mb-3">
+                  Add new drafts by appending to <code className="text-[#888]">data/draft_history.json</code> in the project folder,
+                  then click Sync. Deduplicates by draft ID automatically.
+                </p>
+                <SyncDraftHistoryButton onSynced={fetchAnalytics} />
               </div>
             </div>
           )}
