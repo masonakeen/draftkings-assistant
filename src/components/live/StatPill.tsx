@@ -8,22 +8,20 @@ interface StatPillProps {
   emphasis?: boolean;
 }
 
-/**
- * Stat block — label on top, value below. Sized for easy reading at a glance.
- */
+/** Compact vertical pill — label above, value below. Used in the right column of PlayerCard. */
 export function StatPill({ label, value, colorHex, title, emphasis }: StatPillProps) {
   const color = colorHex ?? "#9099b0";
   return (
     <div
       title={title}
-      className="flex flex-col items-center justify-center rounded-lg px-3 py-2 min-w-[56px]"
-      style={{ background: `${color}18`, border: `1px solid ${color}30` }}
+      className="flex flex-col items-center justify-center rounded-md px-2 py-1.5 w-full"
+      style={{ background: `${color}14`, border: `1px solid ${color}28` }}
     >
-      <span className="text-[10px] font-medium uppercase tracking-wide leading-none mb-1" style={{ color: "#9099b0" }}>
+      <span className="text-[9px] font-semibold uppercase tracking-wider leading-none mb-0.5" style={{ color: "#6b7280" }}>
         {label}
       </span>
       <span
-        className={`text-sm leading-none tabular-nums ${emphasis ? "font-bold" : "font-semibold"}`}
+        className={`text-xs leading-none tabular-nums ${emphasis ? "font-bold" : "font-semibold"}`}
         style={{ color }}
       >
         {value}

@@ -10,17 +10,11 @@ import { checkByeWeekConflict, type RosterSlot } from "../src/lib/analytics/byeC
 import { getPositionalValue } from "../src/lib/analytics/positionalValue";
 import { buildPlayerNameIndex, resolvePlayerName, type PlayerNameIndex, type MasterPlayerLite } from "../src/lib/parsers/playerIdentity";
 import { normalizeTeamCode } from "../src/lib/utils/teamCode";
-import type {
-  LiveDraftPick,
-  NormalizedDraft,
-  NormalizedPlayer,
-  Position,
-  RecommendedPlayer,
-} from "../src/types";
+import type { LiveDraftPick, NormalizedDraft, NormalizedPlayer, Position, RecommendedPlayer } from "../src/types";
 
 const PORT = Number(process.env.BRIDGE_WS_PORT ?? 4001);
 const POSITIONAL_VALUE_ENABLED = process.env.POSITIONAL_VALUE_ENABLED === "true";
-const MASTER_PLAYER_REFRESH_MS = 60_000;
+const REFRESH_MS = 60_000;
 
 const prisma = new PrismaClient();
 
@@ -32,34 +26,42 @@ function normalizePosition(raw: string): Position {
   return "FLEX";
 }
 
-// ─── Cached master player list + name index ───────────────────────────────────
+// ─── Cached player universe ───────────────────────────────────────────────────
 
-let masterPlayers: MasterPlayerLite[] = [];
+type UniverseRow = {
+  name: string; team: string; position: string; bye: number | null;
+  dkAdp: number | null; udAdp: number | null; adpDelta: number | null;
+  playoffTotalOU: number | null; week17OU: number | null;
+  impliedTeamTotal: number | null; week17Opp: number | null;
+};
+
+let universe: UniverseRow[] = [];
 let nameIndex: PlayerNameIndex = buildPlayerNameIndex([]);
-let masterPlayerRaw: Awaited<ReturnType<typeof prisma.masterPlayer.findMany>> = [];
+let week17MatchupMap = new Map<string, string>(); // "DAL" -> "NYG"
 
-// ─── W17 matchup map: normalizedTeam -> normalizedOpponent ───────────────────
-// Derived from TeamWeekProjection.week17Opp — no extra file needed.
-let week17MatchupMap = new Map<string, string>(); // "SF" -> "PHI"
+async function refreshUniverse() {
+  universe = await (prisma as any).playerUniverse.findMany();
 
-async function refreshMasterPlayers() {
-  masterPlayerRaw = await prisma.masterPlayer.findMany();
-  masterPlayers = masterPlayerRaw.map((m: { name: string; team: string; position: string }) => ({
-    name: m.name, team: m.team, position: m.position,
+  const masterLite: MasterPlayerLite[] = universe.map((p: UniverseRow) => ({
+    name: p.name, team: p.team, position: p.position,
   }));
-  nameIndex = buildPlayerNameIndex(masterPlayers);
+  nameIndex = buildPlayerNameIndex(masterLite);
 
-  // Rebuild W17 matchup map
-  const projections = await prisma.teamWeekProjection.findMany({
-    select: { team: true, week17Opp: true },
-  });
+  // Rebuild W17 matchup map — uppercase both sides to prevent silent mismatches
   week17MatchupMap = new Map();
-  for (const p of projections) {
-    if (p.week17Opp) {
-      const opp = normalizeTeamCode(p.week17Opp);
-      week17MatchupMap.set(p.team, opp);
+  for (const p of universe) {
+    if ((p as any).week17Opp) {
+      week17MatchupMap.set(
+        p.team.toUpperCase(),
+        normalizeTeamCode((p as any).week17Opp).toUpperCase()
+      );
     }
   }
+
+  console.log(`[bridge] ${universe.length} players loaded, ${week17MatchupMap.size} W17 matchups`);
+  // Debug: confirm DAL matchup is present
+  const dalOpp = week17MatchupMap.get("DAL");
+  if (dalOpp) console.log(`[bridge] DAL W17 opponent: ${dalOpp}`);
 }
 
 // ─── Recommendation engine ────────────────────────────────────────────────────
@@ -67,38 +69,38 @@ async function refreshMasterPlayers() {
 async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
   const draftedNames = draftSession.getDraftedPlayerNames();
   const myRosterNames = draftSession.getMyRosterNames();
-
-  // Build: myTeamCounts — how many of my live picks are on each team
   const myRoster = draftSession.getState().myRoster;
+
   const myTeamCounts = new Map<string, number>();
+  const myTeams = new Set<string>();
   for (const pick of myRoster) {
     const t = pick.team.toUpperCase();
     myTeamCounts.set(t, (myTeamCounts.get(t) ?? 0) + 1);
+    myTeams.add(t);
   }
 
-  // Build: set of teams I have players on (for W17 bring-back check)
-  const myTeams = new Set(myRoster.map((p) => p.team.toUpperCase()));
+  // Debug log every recompute so stack/bringback issues are traceable
+  if (myRoster.length > 0) {
+    console.log(`[bridge] roster (${myRoster.length}):`, myRoster.map((p: any) => `${p.playerName}(${p.team})`).join(", "));
+    console.log(`[bridge] team counts:`, Object.fromEntries(myTeamCounts));
+  }
 
-  const [dbDrafts, teamProjections, positionalValues] = await Promise.all([
-    prisma.draft.findMany({ include: { players: true } }),
-    prisma.teamWeekProjection.findMany(),
+  const [dbDrafts, positionalValues] = await Promise.all([
+    prisma.draft.findMany({
+      where: { source: { not: "live" } },
+      include: { players: true },
+    }),
     prisma.positionalValue.findMany(),
   ]);
 
   const normalizedDrafts: NormalizedDraft[] = dbDrafts.map((d: any) => ({
-    id: d.id,
-    contestName: d.contestName,
-    entryFee: d.entryFee,
-    draftedAt: d.draftedAt,
-    startingPick: d.startingPick,
-    totalTeams: d.totalTeams,
-    players: d.players.map(
-      (p: any): NormalizedPlayer => ({
-        id: p.id, name: p.name, team: p.team, position: p.position as Position,
-        draftedPick: p.draftedPick, draftedRound: p.draftedRound,
-        adpAtDraft: p.adpAtDraft, currentAdp: p.currentAdp, draftId: p.draftId,
-      })
-    ),
+    id: d.id, contestName: d.contestName, entryFee: d.entryFee,
+    draftedAt: d.draftedAt, startingPick: d.startingPick, totalTeams: d.totalTeams,
+    players: d.players.map((p: any): NormalizedPlayer => ({
+      id: p.id, name: p.name, team: p.team, position: p.position as Position,
+      draftedPick: p.draftedPick, draftedRound: p.draftedRound,
+      adpAtDraft: p.adpAtDraft, currentAdp: p.currentAdp, draftId: p.draftId,
+    })),
   }));
 
   const totalDrafts = normalizedDrafts.length;
@@ -107,89 +109,60 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
   const exposureByName = new Map<string, number>();
   if (totalDrafts > 0) {
     const counts = new Map<string, number>();
-    for (const d of normalizedDrafts) {
-      for (const p of d.players) {
-        const key = p.name.toLowerCase();
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-      }
-    }
-    for (const [key, count] of counts) {
+    for (const d of normalizedDrafts)
+      for (const p of d.players)
+        counts.set(p.name.toLowerCase(), (counts.get(p.name.toLowerCase()) ?? 0) + 1);
+    for (const [key, count] of counts)
       exposureByName.set(key, Math.round((count / totalDrafts) * 1000) / 10);
-    }
   }
 
-  const teamProjByTeam = new Map(teamProjections.map((t: any) => [t.team, t]));
   const posValueByName = positionalValues.map((v: any) => ({
-    playerName: v.playerName,
-    position: v.position as Position,
-    value: v.value,
+    playerName: v.playerName, position: v.position as Position, value: v.value,
   }));
 
-  const myRosterSlots: RosterSlot[] = myRoster.map((p) => ({
-    name: p.playerName,
-    team: p.team,
-    position: p.position,
-    byeWeek: masterPlayerRaw.find((m: any) => m.name === p.playerName)?.bye ?? null,
+  const myRosterSlots: RosterSlot[] = myRoster.map((p: any) => ({
+    name: p.playerName, team: p.team, position: p.position,
+    byeWeek: universe.find((u: UniverseRow) => u.name === p.playerName)?.bye ?? null,
   }));
 
   const recommended: RecommendedPlayer[] = [];
 
-  for (const mp of masterPlayerRaw) {
-    const nameLower = mp.name.toLowerCase();
-    if (draftedNames.has(nameLower)) continue;
+  for (const p of universe) {
+    if (draftedNames.has(p.name.toLowerCase())) continue;
 
-    const team = teamProjByTeam.get(mp.team) as any;
-    const playoffOUs = [team?.week15OU, team?.week16OU, team?.week17OU].filter(
-      (v: any): v is number => v !== null && v !== undefined
-    );
-    const playoffTotalOU = playoffOUs.length > 0
-      ? Math.round((playoffOUs.reduce((s: number, v: number) => s + v, 0) / playoffOUs.length) * 10) / 10
-      : null;
-
-    const teamTotals = [team?.week15TeamTotal, team?.week16TeamTotal, team?.week17TeamTotal].filter(
-      (v: any): v is number => v !== null && v !== undefined
-    );
-    const impliedTeamTotal = teamTotals.length > 0
-      ? Math.round((teamTotals.reduce((s: number, v: number) => s + v, 0) / teamTotals.length) * 10) / 10
-      : null;
-
-    const position = normalizePosition(mp.position);
+    const position = normalizePosition(p.position);
     const { conflict } = checkByeWeekConflict(
-      { team: mp.team, position, byeWeek: mp.bye },
+      { team: p.team, position, byeWeek: p.bye },
       myRosterSlots
     );
 
-    // ── Stack badge: how many of my live picks are already on this player's team
-    const stackCount = myTeamCounts.get(mp.team.toUpperCase()) ?? 0;
-
-    // ── W17 bring-back: does this player's team face one of MY teams in W17?
-    const w17Opp = week17MatchupMap.get(mp.team.toUpperCase()) ?? null;
+    const stackCount = myTeamCounts.get(p.team.toUpperCase()) ?? 0;
+    const w17Opp = week17MatchupMap.get(p.team.toUpperCase()) ?? null;
     const week17BringBack = w17Opp !== null && myTeams.has(w17Opp);
 
     recommended.push({
-      name: mp.name,
-      team: mp.team,
+      name: p.name,
+      team: p.team,
       position,
-      adp: mp.draftkingsAdp,
-      dkAdp: mp.draftkingsAdp,
+      adp: p.dkAdp,
+      dkAdp: p.dkAdp,
       adpTrend: null,
-      playoffTotalOU,
-      week17OU: team?.week17OU ?? null,
-      impliedTeamTotal,
-      personalExposure: exposureByName.get(nameLower) ?? null,
-      correlationFlag: checkCorrelationFlag(coIndex, mp.name, myRosterNames),
-      positionalValue: getPositionalValue(posValueByName, mp.name, POSITIONAL_VALUE_ENABLED),
-      byeWeek: mp.bye,
+      playoffTotalOU: p.playoffTotalOU,
+      week17OU: p.week17OU,
+      impliedTeamTotal: p.impliedTeamTotal,
+      personalExposure: exposureByName.get(p.name.toLowerCase()) ?? null,
+      correlationFlag: checkCorrelationFlag(coIndex, p.name, myRosterNames),
+      positionalValue: getPositionalValue(posValueByName, p.name, POSITIONAL_VALUE_ENABLED),
+      byeWeek: p.bye,
       byeConflict: conflict,
-      underdogAdp: mp.underdogAdp,
-      adpDelta: mp.adpDelta,
+      underdogAdp: p.udAdp,
+      adpDelta: p.adpDelta,
       stackCount,
       week17BringBack,
       week17Opponent: w17Opp,
     });
   }
 
-  // Sort by DK ADP, falling back to avgAdp then fpRank so list is never unordered
   recommended.sort((a, b) => {
     const aVal = a.adp ?? a.underdogAdp ?? 999;
     const bVal = b.adp ?? b.underdogAdp ?? 999;
@@ -204,55 +177,41 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
 async function saveCompletedDraftToHistory() {
   const state = draftSession.getState();
   if (state.picks.length === 0) return;
-
   const draftId = `live_${state.sessionId}`;
   const existing = await prisma.draft.findUnique({ where: { id: draftId } });
   if (existing) return;
 
   await prisma.draft.create({
     data: {
-      id: draftId,
-      contestName: state.contestName ?? "Live Draft",
-      entryFee: 0,
-      draftedAt: new Date(),
-      startingPick: state.startingPick,
-      totalTeams: state.totalTeams,
+      id: draftId, contestName: state.contestName ?? "Live Draft", entryFee: 0,
+      draftedAt: new Date(), startingPick: state.startingPick, totalTeams: state.totalTeams,
       source: "live",
       players: {
-        create: state.picks
-          .filter((p) => p.pickedByMe)
-          .map((p) => ({
-            id: uuidv4(),
-            name: p.playerName,
-            rawName: p.rawName,
-            team: p.team,
-            position: p.position,
-            draftedPick: p.pickNumber,
-            draftedRound: Math.ceil(p.pickNumber / state.totalTeams),
-            adpAtDraft: null,
-            currentAdp: null,
-          })),
+        create: state.picks.filter((p: any) => p.pickedByMe).map((p: any) => ({
+          id: uuidv4(), name: p.playerName, rawName: p.rawName ?? null,
+          team: p.team, position: p.position, draftedPick: p.pickNumber,
+          draftedRound: Math.ceil(p.pickNumber / state.totalTeams),
+          adpAtDraft: null, currentAdp: null,
+        })),
       },
     },
   });
-  console.log(`[bridge] Auto-saved live draft ${draftId}`);
+  console.log(`[bridge] auto-saved live draft ${draftId}`);
 }
 
-// ─── WebSocket hub ────────────────────────────────────────────────────────────
+// ─── HTTP + WebSocket server ──────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
-    return;
+    return res.end(JSON.stringify({ ok: true, players: universe.length }));
   }
   if (req.url === "/state") {
-    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-    res.end(lastPayload ?? JSON.stringify({ type: "state_update", state: draftSession.getState(), recommended: [] }));
-    return;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(lastPayload ?? JSON.stringify({ type: "state_update", state: draftSession.getState(), recommended: [] }));
   }
-  res.writeHead(404);
-  res.end();
+  res.writeHead(404); res.end();
 });
 
 const wss = new WebSocketServer({ server });
@@ -261,36 +220,20 @@ let lastPayload: string | null = null;
 
 async function broadcastState() {
   const recommended = await computeRecommendedPlayers();
-  const payload = JSON.stringify({
-    type: "state_update",
-    state: draftSession.getState(),
-    recommended,
-  });
+  const payload = JSON.stringify({ type: "state_update", state: draftSession.getState(), recommended });
   lastPayload = payload;
-  for (const client of clients) {
+  for (const client of clients)
     if (client.readyState === WebSocket.OPEN) client.send(payload);
-  }
 }
 
-interface IncomingPick {
-  pickNumber: number;
-  rawName: string;
-  team: string;
-  position: string;
-  isMine: boolean;
-}
-
-function resolveIncomingPicks(picks: IncomingPick[]): LiveDraftPick[] {
+function resolveIncomingPicks(picks: any[]): LiveDraftPick[] {
   return picks.map((p) => {
     const team = normalizeTeamCode(p.team);
     const resolved = resolvePlayerName(nameIndex, p.rawName, team);
     return {
-      playerName: resolved ?? p.rawName,
-      rawName: p.rawName,
-      team,
-      position: normalizePosition(p.position),
-      pickNumber: p.pickNumber,
-      pickedByMe: p.isMine,
+      playerName: resolved ?? p.rawName, rawName: p.rawName,
+      team, position: normalizePosition(p.position),
+      pickNumber: p.pickNumber, pickedByMe: p.isMine,
       pickedAt: new Date().toISOString(),
     };
   });
@@ -299,59 +242,36 @@ function resolveIncomingPicks(picks: IncomingPick[]): LiveDraftPick[] {
 wss.on("connection", async (ws) => {
   clients.add(ws);
   console.log(`[bridge] client connected (${clients.size} total)`);
-
-  ws.send(JSON.stringify({
-    type: "state_update",
-    state: draftSession.getState(),
-    recommended: await computeRecommendedPlayers(),
-  }));
+  ws.send(JSON.stringify({ type: "state_update", state: draftSession.getState(), recommended: await computeRecommendedPlayers() }));
 
   ws.on("message", async (raw) => {
     let msg: any;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
     switch (msg.type) {
-      case "board_snapshot": {
-        const resolvedPicks = resolveIncomingPicks(msg.picks ?? []);
+      case "board_snapshot":
         draftSession.applySnapshot({
-          contestName: msg.contestName ?? null,
-          totalTeams: msg.totalTeams ?? 12,
-          myUsername: msg.myUsername ?? null,
-          rosterSize: msg.rosterSize,
-          picks: resolvedPicks,
+          contestName: msg.contestName ?? null, totalTeams: msg.totalTeams ?? 12,
+          myUsername: msg.myUsername ?? null, rosterSize: msg.rosterSize,
+          picks: resolveIncomingPicks(msg.picks ?? []),
         });
         if (draftSession.isComplete()) await saveCompletedDraftToHistory();
         break;
-      }
-      case "on_the_clock":
-        draftSession.setOnTheClock(Boolean(msg.isOnTheClock));
-        break;
-      case "reset_session":
-        draftSession.reset();
-        break;
-      case "refresh_master_players":
-        await refreshMasterPlayers();
-        break;
-      default:
-        return;
+      case "on_the_clock": draftSession.setOnTheClock(Boolean(msg.isOnTheClock)); break;
+      case "reset_session": draftSession.reset(); break;
+      case "refresh_universe": await refreshUniverse(); break;
+      default: return;
     }
     await broadcastState();
   });
 
-  ws.on("close", () => {
-    clients.delete(ws);
-    console.log(`[bridge] client disconnected (${clients.size} total)`);
-  });
+  ws.on("close", () => { clients.delete(ws); });
 });
 
 server.listen(PORT, async () => {
-  await refreshMasterPlayers();
+  await refreshUniverse();
   console.log(`[bridge] listening on ws://localhost:${PORT}`);
-  console.log(`[bridge] ${masterPlayers.length} players, ${week17MatchupMap.size} W17 matchups loaded`);
-  setInterval(refreshMasterPlayers, MASTER_PLAYER_REFRESH_MS);
+  setInterval(refreshUniverse, REFRESH_MS);
 });
 
-process.on("SIGINT", async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+process.on("SIGINT", async () => { await prisma.$disconnect(); process.exit(0); });

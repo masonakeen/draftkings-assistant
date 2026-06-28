@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Portfolio history (from DK CSV exports, JSON exports, or auto-saved live drafts) ──
+// ─── Portfolio history ────────────────────────────────────────────────────────
 
 model Draft {
   id           String   @id
@@ -24,8 +24,8 @@ model Draft {
 
 model Player {
   id           String  @id @default(cuid())
-  name         String  // resolved canonical name where possible (e.g. "Justin Jefferson")
-  rawName      String? // original string from the source, e.g. "J. Jefferson"
+  name         String
+  rawName      String?
   team         String
   position     String
   draftedPick  Int
@@ -45,36 +45,63 @@ model RawImport {
   importedAt DateTime @default(now())
   rowCount   Int
   rawData    String
-  importType String   @default("dk_draft") // dk_draft | draft_json | master_rankings | team_totals | positional_value
+  importType String   @default("dk_draft")
 
   @@map("raw_imports")
 }
 
-// ─── Master player universe — name identity, ADP (both sites), bye weeks ─────
-// Sourced from a FantasyPros (or similar) multi-site ADP export. This is the
-// canonical player list the live draft assistant works from: "available
-// players" = this list minus whoever's been drafted, so no separate static
-// player database is needed.
+// ─── Canonical player universe ────────────────────────────────────────────────
+// Single source of truth for every player. All analytics, the live assistant,
+// and ADP lookups read from this table. Updated by two routes:
+//   POST /api/import/master-rankings  — bulk upsert from FantasyPros CSV
+//   POST /api/import/dk-adp           — updates dkAdp only (preserves udAdp/delta)
+//   POST /api/import/team-totals      — writes Vegas data (joined by team)
+//
+// To manually update ADP:
+//   dkAdp      → re-import DK_ADP_Export.csv via the dashboard "DK ADP" dropzone
+//   udAdp      → re-import the FantasyPros multi-site CSV (updates both UD and FP rank)
+//   adpDelta   → auto-recomputed as (dkAdp - udAdp) whenever either is updated
 
-model MasterPlayer {
-  id            String   @id @default(cuid())
-  name          String   @unique
-  team          String
-  position      String
-  bye           Int?
-  fpRank        Int?
-  underdogAdp   Float?
-  draftkingsAdp Float?
-  avgAdp        Float?
-  adpDelta      Float?
-  updatedAt     DateTime @updatedAt
+model PlayerUniverse {
+  id       String @id @default(cuid())
+  name     String @unique   // canonical full name — the join key everywhere
+  team     String           // normalized 2-3 letter code, e.g. "DAL"
+  position String           // "QB" | "RB" | "WR" | "TE" | "K" | "DST"
+  bye      Int?             // bye week number
+
+  // ── ADP (update via CSV import, see routes above) ─────────────────────────
+  dkAdp    Float?           // DraftKings ADP — primary sort key for live assistant
+  udAdp    Float?           // Underdog ADP
+  adpDelta Float?           // dkAdp - udAdp (positive = later on DK = DK value)
+  fpRank   Int?             // FantasyPros consensus rank
+  avgAdp   Float?           // multi-site average ADP
+
+  // ── Vegas / playoff projections (keyed by team via TeamWeekProjection) ────
+  // Denormalized here at write-time so the live assistant can read one table.
+  week15Opp        String?
+  week15TeamTotal  Float?
+  week15OU         Float?
+  week16Opp        String?
+  week16TeamTotal  Float?
+  week16OU         Float?
+  week17Opp        String?  // used for W17 bring-back detection
+  week17TeamTotal  Float?
+  week17OU         Float?
+  week18Opp        String?
+  week18TeamTotal  Float?
+  week18OU         Float?
+  playoffTotalOU   Float?   // avg of wk15-17 game O/Us
+  impliedTeamTotal Float?   // avg of wk15-17 team totals
+
+  updatedAt DateTime @updatedAt
 
   @@index([team])
-  @@map("master_players")
+  @@map("player_universe")
 }
 
-// ─── Team-level Vegas data for weeks 15–17 (the best ball playoff window) ────
-// Keyed by team, not player — sidesteps player name-matching entirely.
+// ─── Team Vegas data (write source — denormalized into PlayerUniverse on import) ─
+// Kept as the authoritative Vegas record. PlayerUniverse gets its Vegas fields
+// populated from here whenever team-totals CSV is imported.
 
 model TeamWeekProjection {
   id                    String   @id @default(cuid())
@@ -97,7 +124,8 @@ model TeamWeekProjection {
   @@map("team_week_projections")
 }
 
-// "Beersheets"-style remaining positional value. Feature-flagged off until populated.
+// ─── Beersheets positional value (feature-flagged) ────────────────────────────
+
 model PositionalValue {
   id         String   @id @default(cuid())
   playerName String
