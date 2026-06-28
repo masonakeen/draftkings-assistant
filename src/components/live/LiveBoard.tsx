@@ -7,7 +7,7 @@ import type { LiveDraftState, RecommendedPlayer, Position } from "@/types";
 const BRIDGE_HTTP = "http://localhost:4001";
 const BRIDGE_WS = "ws://localhost:4001";
 
-const POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "FLEX", "DST", "K"];
+const POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "DST", "K"];
 
 const POS_COLORS: Record<Position, string> = {
   QB: "#f87171", RB: "#4ade80", WR: "#60a5fa",
@@ -20,7 +20,7 @@ export function LiveBoard() {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [state, setState] = useState<LiveDraftState | null>(null);
   const [recommended, setRecommended] = useState<RecommendedPlayer[]>([]);
-  const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
+  const [posFilter, setPosFilter] = useState<Position | "ALL" | "SKILL">("ALL");
   const [search, setSearch] = useState("");
   const [resetConfirm, setResetConfirm] = useState(false);
 
@@ -75,7 +75,7 @@ export function LiveBoard() {
 
   const filtered = useMemo(() => {
     let list = recommended;
-    if (posFilter !== "ALL") list = list.filter((p) => p.position === posFilter);
+    if (posFilter === "SKILL") list = list.filter((p) => p.position !== "QB"); else if (posFilter !== "ALL") list = list.filter((p) => p.position === posFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((p) =>
@@ -209,6 +209,17 @@ export function LiveBoard() {
             }
           >
             ALL
+          </button>
+          <button
+            onClick={() => setPosFilter("SKILL")}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+            style={
+              posFilter === "SKILL"
+                ? { background: "#a3e635", color: "#0a0f0a" }
+                : { background: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text-secondary)" }
+            }
+          >
+            SKILL
           </button>
           {POSITIONS.map((pos) => (
             <button

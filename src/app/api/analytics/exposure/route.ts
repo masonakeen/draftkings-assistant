@@ -25,7 +25,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const positionFilter = searchParams.get("position");
 
-    const dbDrafts = await prisma.draft.findMany({ include: { players: true } });
+    // Exclude auto-saved live drafts — they aren't "entered" drafts
+    const dbDrafts = await prisma.draft.findMany({
+      where: { source: { not: "live" } },
+      include: { players: true },
+    });
 
     const drafts: NormalizedDraft[] = dbDrafts.map((d: any) => ({
       id: d.id,

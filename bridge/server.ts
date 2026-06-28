@@ -57,11 +57,9 @@ async function refreshMasterPlayers() {
   for (const p of projections) {
     if (p.week17Opp) {
       const opp = normalizeTeamCode(p.week17Opp);
-      // Force both key and value to uppercase so lookups never silently miss
-      week17MatchupMap.set(p.team.toUpperCase(), opp.toUpperCase());
+      week17MatchupMap.set(p.team, opp);
     }
   }
-  console.log(`[bridge] W17 matchups: ${week17MatchupMap.size} loaded`, Object.fromEntries(week17MatchupMap));
 }
 
 // ─── Recommendation engine ────────────────────────────────────────────────────
@@ -77,8 +75,6 @@ async function computeRecommendedPlayers(): Promise<RecommendedPlayer[]> {
     const t = pick.team.toUpperCase();
     myTeamCounts.set(t, (myTeamCounts.get(t) ?? 0) + 1);
   }
-console.log(`[bridge] my roster (${myRoster.length} picks):`, myRoster.map(p => `${p.playerName}(${p.team})`));
-console.log(`[bridge] team counts:`, Object.fromEntries(myTeamCounts));
 
   // Build: set of teams I have players on (for W17 bring-back check)
   const myTeams = new Set(myRoster.map((p) => p.team.toUpperCase()));
@@ -193,10 +189,11 @@ console.log(`[bridge] team counts:`, Object.fromEntries(myTeamCounts));
     });
   }
 
+  // Sort by DK ADP, falling back to avgAdp then fpRank so list is never unordered
   recommended.sort((a, b) => {
-    if (a.adp === null) return 1;
-    if (b.adp === null) return -1;
-    return a.adp - b.adp;
+    const aVal = a.adp ?? a.underdogAdp ?? 999;
+    const bVal = b.adp ?? b.underdogAdp ?? 999;
+    return aVal - bVal;
   });
 
   return recommended;
