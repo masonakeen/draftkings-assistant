@@ -28,11 +28,14 @@ export interface PlayerExposure {
   name: string;
   team: string;
   position: Position;
+  imageUrl: string | null;       // from PlayerUniverse
   draftCount: number;
   exposure: number;
   avgPickWhenDrafted: number;
-  avgAdp: number | null;
-  clvAvg: number | null;
+  avgAdp: number | null;         // avg of historical adpAtDraft values
+  currentDkAdp: number | null;  // live DK ADP from PlayerUniverse
+  clv: number | null;           // (avgPickWhenDrafted - currentDkAdp) / currentDkAdp — negative = value (green), positive = overpay (red)
+  clvAvg: number | null;        // legacy: kept for backward compat
 }
 
 export interface StackExposure {

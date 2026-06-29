@@ -75,6 +75,8 @@ model PlayerUniverse {
   adpDelta Float?           // dkAdp - udAdp (positive = later on DK = DK value)
   fpRank   Int?             // FantasyPros consensus rank
   avgAdp   Float?           // multi-site average ADP
+  playerUid String?         // DraftKings player UID e.g. "693112"
+  imageUrl  String?         // https://dkn.gs/sports/images/nfl/players/50/693112.png
 
   // ── Vegas / playoff projections (keyed by team via TeamWeekProjection) ────
   // Denormalized here at write-time so the live assistant can read one table.

@@ -28,7 +28,7 @@ export async function POST() {
     }
 
     // Name resolution — optional, skip gracefully if master players not yet imported
-    const masterPlayers = await prisma.masterPlayer.findMany({
+    const masterPlayers = await (prisma as any).playerUniverse.findMany({
       select: { name: true, team: true, position: true },
     });
     const nameIndex = buildPlayerNameIndex(masterPlayers);

@@ -10,7 +10,6 @@ const POSITION_COLORS: Record<Position, string> = {
   TE: "#fbbf24", FLEX: "#c084fc", K: "#94a3b8", DST: "#2dd4bf",
 };
 
-// Badge config — stack and bring-back get a prominent green glow border
 const BADGE_STYLES = {
   stack:       { bg: "#4ade8014", border: "#4ade8066", color: "#4ade80", glow: true },
   bringback:   { bg: "#4ade8014", border: "#4ade8066", color: "#4ade80", glow: true },
@@ -51,29 +50,26 @@ export function PlayerCard({ player, showPositionalValue }: {
   const hasByeConflict = player.byeConflict;
   const hasCorrelation = !!player.correlationFlag;
   const significantDelta = isSignificantADPDelta(player.adpDelta);
-  const hasBadges = hasStack || hasBringBack || hasByeConflict || hasCorrelation;
-
-  // Card border glows green when there's a positive signal (stack or bring-back)
   const hasPositiveSignal = hasStack || hasBringBack;
+
+  // dkAdp is the source of truth for display rank — falls back to udAdp
+  const displayAdp = player.dkAdp ?? player.underdogAdp;
 
   return (
     <div
       className="rounded-xl transition-all"
       style={{
         background: "var(--surface)",
-        border: hasPositiveSignal
-          ? "1px solid #4ade8055"
-          : "1px solid var(--border-subtle)",
+        border: hasPositiveSignal ? "1px solid #4ade8055" : "1px solid var(--border-subtle)",
         boxShadow: hasPositiveSignal ? "0 0 12px #4ade8022" : "none",
       }}
     >
-      {/* ── Main body: left content + right stats column ── */}
       <div className="flex gap-0 items-stretch">
 
-        {/* ── LEFT: name block + badges ── */}
+        {/* ── LEFT: identity + badges ── */}
         <div className="flex-1 min-w-0 px-3.5 py-3">
 
-          {/* Position badge + ADP on same line */}
+          {/* Position badge + DK ADP rank */}
           <div className="flex items-center justify-between mb-1.5">
             <span
               className="text-[10px] font-bold px-1.5 py-0.5 rounded"
@@ -81,31 +77,49 @@ export function PlayerCard({ player, showPositionalValue }: {
             >
               {player.position}
             </span>
-            <span className="text-xs tabular-nums font-medium" style={{ color: "var(--text-muted)" }}>
-              {player.adp != null ? `#${player.adp.toFixed(1)}` : "—"}
+            {/* DK ADP — white, clearly labeled */}
+            <span className="text-xs font-bold tabular-nums" style={{ color: "#ffffff" }}>
+              {displayAdp != null ? `#${displayAdp.toFixed(1)}` : "—"}
             </span>
           </div>
 
-          {/* Player name — dominant */}
-          <div className="mb-0.5">
-            <span className="text-lg font-bold leading-tight block truncate" style={{ color: "#ffffff" }}>
-              {player.name}
-            </span>
-          </div>
+          {/* Player name — dominant, white */}
+          <span className="text-lg font-bold leading-tight block truncate" style={{ color: "#ffffff" }}>
+            {player.name}
+          </span>
 
-          {/* Team — white, readable */}
-          <div className="mb-2.5">
-            <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: "#ffffff" }}>
+          {/* Team + bye — both white, readable */}
+          <div className="flex items-center gap-2 mt-0.5 mb-2.5">
+            <span className="text-sm font-bold uppercase tracking-wide" style={{ color: "#ffffff" }}>
               {player.team}
             </span>
             {player.byeWeek != null && (
-              <span className="ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
+              <span
+                className="text-xs font-semibold px-1.5 py-0.5 rounded"
+                style={{ color: "#ffffff", background: "#ffffff18", border: "1px solid #ffffff30" }}
+              >
                 Bye {player.byeWeek}
               </span>
             )}
           </div>
 
-          {/* Badges row — always reserve space so cards don't jump */}
+          {/* Exposure — white outline box when non-zero */}
+          {player.personalExposure != null && player.personalExposure > 0 && (
+            <div className="mb-2">
+              <span
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md"
+                style={{
+                  color: player.personalExposure >= 40 ? "#fbbf24" : "#ffffff",
+                  background: player.personalExposure >= 40 ? "#fbbf2414" : "#ffffff0a",
+                  border: player.personalExposure >= 40 ? "1px solid #fbbf2444" : "1px solid #ffffff40",
+                }}
+              >
+                {player.personalExposure.toFixed(0)}% exposure
+              </span>
+            </div>
+          )}
+
+          {/* Live draft badges */}
           <div className="flex flex-wrap gap-1.5 min-h-[26px]">
             {hasStack && (
               <Badge
@@ -128,7 +142,6 @@ export function PlayerCard({ player, showPositionalValue }: {
                 style={BADGE_STYLES.bye}
                 icon={<AlertTriangle className="h-3 w-3 shrink-0" />}
                 label={`Bye ${player.byeWeek} conflict`}
-                title="Bye week overlaps with existing roster"
               />
             )}
             {hasCorrelation && player.correlationFlag && (
@@ -140,21 +153,9 @@ export function PlayerCard({ player, showPositionalValue }: {
               />
             )}
           </div>
-
-          {/* Exposure — subtle, below badges */}
-          {player.personalExposure != null && (
-            <div className="mt-2">
-              <span className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
-                My exposure: {" "}
-                <span style={{ color: player.personalExposure >= 40 ? "#fbbf24" : "#9099b0" }}>
-                  {player.personalExposure.toFixed(0)}%
-                </span>
-              </span>
-            </div>
-          )}
         </div>
 
-        {/* ── RIGHT: vertical stats column ── */}
+        {/* ── RIGHT: vertical stats ── */}
         <div
           className="shrink-0 w-[76px] flex flex-col gap-1 p-2 justify-center rounded-r-xl"
           style={{ borderLeft: "1px solid var(--border-subtle)", background: "var(--surface-raised)" }}
@@ -192,7 +193,6 @@ export function PlayerCard({ player, showPositionalValue }: {
           {showPositionalValue && player.positionalValue != null && (
             <StatPill label="Pos. Val" value={player.positionalValue.toFixed(1)} colorHex="#c084fc" />
           )}
-          {/* Spacer when no stats yet imported */}
           {player.playoffTotalOU == null && player.week17OU == null && player.impliedTeamTotal == null && (
             <span className="text-[9px] text-center" style={{ color: "var(--text-muted)" }}>
               Import team totals
