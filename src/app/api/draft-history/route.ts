@@ -39,21 +39,13 @@ export async function POST() {
       return NextResponse.json({ error: "No drafts found in draft_history.json", parseErrors: errors }, { status: 422 });
     }
 
-    // Fetch existing IDs once, deduplicate in memory
-    const existingIds = new Set(
-      (await prisma.draft.findMany({ select: { id: true } }))
-        .map((d: { id: string }) => d.id)
-    );
+    // Wipe all previously-synced JSON drafts so stale/removed drafts don't persist.
+    // Players cascade-delete via Prisma's referential actions.
+    await prisma.draft.deleteMany({ where: { source: "json" } });
 
     let imported = 0;
-    let skipped = 0;
 
     for (const draft of drafts) {
-      if (existingIds.has(draft.id)) {
-        skipped++;
-        continue;
-      }
-
       await prisma.draft.create({
         data: {
           id: draft.id,
@@ -81,7 +73,7 @@ export async function POST() {
       imported++;
     }
 
-    return NextResponse.json({ success: true, imported, skipped, total: drafts.length, parseErrors: errors });
+    return NextResponse.json({ success: true, imported, skipped: 0, total: drafts.length, parseErrors: errors });
   } catch (err) {
     console.error("Draft history sync error:", err);
     return NextResponse.json({ error: "Sync failed", detail: String(err) }, { status: 500 });

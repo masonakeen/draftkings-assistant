@@ -16,6 +16,7 @@ interface RawJsonPlayer {
 interface RawJsonDraft {
   draftId: string;
   draftDate: string;
+  entryFee?: number;
   site?: string;
   username?: string;
   totalPlayers?: number;
@@ -81,7 +82,7 @@ function parseOneDraft(raw: RawJsonDraft, nameIndex: PlayerNameIndex, errors: st
   return {
     id: raw.draftId,
     contestName,
-    entryFee: 0,
+    entryFee: typeof raw.entryFee === "number" ? raw.entryFee : 0,
     draftedAt,
     startingPick,
     totalTeams,
