@@ -3348,4 +3348,396 @@
   ]
 }
 
+{
+  "draftId": "20260710010720-jajqrm",
+  "draftDate": "2026-07-10T01:07:20.736Z",
+  "site": "DraftKings",
+  "username": "masonkeen",
+  "entryFee": 3,
+  "rosterBreakdown": {
+    "QB": 3,
+    "RB": 6,
+    "WR": 8,
+    "TE": 3
+  },
+  "totalPlayers": 20,
+  "players": [
+    {
+      "playerId": "20260710010720-jajqrm-001",
+      "roundPick": "1.3",
+      "pick": 3,
+      "player": "J. Chase",
+      "position": "WR",
+      "team": "CIN",
+      "byeWeek": 6
+    },
+    {
+      "playerId": "20260710010720-jajqrm-002",
+      "roundPick": "2.10",
+      "pick": 22,
+      "player": "R. Rice",
+      "position": "WR",
+      "team": "KC",
+      "byeWeek": 5
+    },
+    {
+      "playerId": "20260710010720-jajqrm-003",
+      "roundPick": "3.3",
+      "pick": 27,
+      "player": "J. Love",
+      "position": "RB",
+      "team": "ARI",
+      "byeWeek": 14
+    },
+    {
+      "playerId": "20260710010720-jajqrm-004",
+      "roundPick": "4.10",
+      "pick": 46,
+      "player": "G. Wilson",
+      "position": "WR",
+      "team": "NYJ",
+      "byeWeek": 13
+    },
+    {
+      "playerId": "20260710010720-jajqrm-005",
+      "roundPick": "5.3",
+      "pick": 51,
+      "player": "D. Montgomery",
+      "position": "RB",
+      "team": "HOU",
+      "byeWeek": 8
+    },
+    {
+      "playerId": "20260710010720-jajqrm-006",
+      "roundPick": "6.10",
+      "pick": 70,
+      "player": "J. Hurts",
+      "position": "QB",
+      "team": "PHI",
+      "byeWeek": 10
+    },
+    {
+      "playerId": "20260710010720-jajqrm-007",
+      "roundPick": "7.3",
+      "pick": 75,
+      "player": "M. Lemon",
+      "position": "WR",
+      "team": "PHI",
+      "byeWeek": 10
+    },
+    {
+      "playerId": "20260710010720-jajqrm-008",
+      "roundPick": "8.10",
+      "pick": 94,
+      "player": "P. Mahomes",
+      "position": "QB",
+      "team": "KC",
+      "byeWeek": 5
+    },
+    {
+      "playerId": "20260710010720-jajqrm-009",
+      "roundPick": "9.3",
+      "pick": 99,
+      "player": "R. Dowdle",
+      "position": "RB",
+      "team": "PIT",
+      "byeWeek": 9
+    },
+    {
+      "playerId": "20260710010720-jajqrm-010",
+      "roundPick": "10.10",
+      "pick": 118,
+      "player": "T. Kelce",
+      "position": "TE",
+      "team": "KC",
+      "byeWeek": 5
+    },
+    {
+      "playerId": "20260710010720-jajqrm-011",
+      "roundPick": "11.3",
+      "pick": 123,
+      "player": "D. Goedert",
+      "position": "TE",
+      "team": "PHI",
+      "byeWeek": 10
+    },
+    {
+      "playerId": "20260710010720-jajqrm-012",
+      "roundPick": "12.10",
+      "pick": 142,
+      "player": "S. Darnold",
+      "position": "QB",
+      "team": "SEA",
+      "byeWeek": 11
+    },
+    {
+      "playerId": "20260710010720-jajqrm-013",
+      "roundPick": "13.3",
+      "pick": 147,
+      "player": "R. Shaheed",
+      "position": "WR",
+      "team": "SEA",
+      "byeWeek": 11
+    },
+    {
+      "playerId": "20260710010720-jajqrm-014",
+      "roundPick": "14.10",
+      "pick": 166,
+      "player": "D. Sampson",
+      "position": "RB",
+      "team": "CLE",
+      "byeWeek": 11
+    },
+    {
+      "playerId": "20260710010720-jajqrm-015",
+      "roundPick": "15.3",
+      "pick": 171,
+      "player": "A. Barner",
+      "position": "TE",
+      "team": "SEA",
+      "byeWeek": 11
+    },
+    {
+      "playerId": "20260710010720-jajqrm-016",
+      "roundPick": "16.10",
+      "pick": 190,
+      "player": "R. Davis",
+      "position": "RB",
+      "team": "BUF",
+      "byeWeek": 7
+    },
+    {
+      "playerId": "20260710010720-jajqrm-017",
+      "roundPick": "17.3",
+      "pick": 195,
+      "player": "G. Bernard",
+      "position": "WR",
+      "team": "PIT",
+      "byeWeek": 9
+    },
+    {
+      "playerId": "20260710010720-jajqrm-018",
+      "roundPick": "18.10",
+      "pick": 214,
+      "player": "T. Franklin",
+      "position": "WR",
+      "team": "DEN",
+      "byeWeek": 10
+    },
+    {
+      "playerId": "20260710010720-jajqrm-019",
+      "roundPick": "19.3",
+      "pick": 219,
+      "player": "D. Claiborne",
+      "position": "RB",
+      "team": "MIN",
+      "byeWeek": 6
+    },
+    {
+      "playerId": "20260710010720-jajqrm-020",
+      "roundPick": "20.10",
+      "pick": 238,
+      "player": "K. Coleman",
+      "position": "WR",
+      "team": "BUF",
+      "byeWeek": 7
+    }
+  ]
+}
+
+{
+  "draftId": "20260722220316-xpb14y",
+  "draftDate": "2026-07-22T22:03:16.914Z",
+  "site": "DraftKings",
+  "username": "masonkeen",
+  "rosterBreakdown": {
+    "QB": 2,
+    "RB": 7,
+    "WR": 7,
+    "TE": 4
+  },
+  "totalPlayers": 20,
+  "players": [
+    {
+      "playerId": "20260722220316-xpb14y-001",
+      "roundPick": "1.10",
+      "pick": 10,
+      "player": "C. Lamb",
+      "position": "WR",
+      "team": "DAL",
+      "byeWeek": 14
+    },
+    {
+      "playerId": "20260722220316-xpb14y-002",
+      "roundPick": "2.3",
+      "pick": 15,
+      "player": "O. Hampton",
+      "position": "RB",
+      "team": "LAC",
+      "byeWeek": 7
+    },
+    {
+      "playerId": "20260722220316-xpb14y-003",
+      "roundPick": "3.10",
+      "pick": 34,
+      "player": "J. Allen",
+      "position": "QB",
+      "team": "BUF",
+      "byeWeek": 7
+    },
+    {
+      "playerId": "20260722220316-xpb14y-004",
+      "roundPick": "4.3",
+      "pick": 39,
+      "player": "M. Nabers",
+      "position": "WR",
+      "team": "NYG",
+      "byeWeek": 8
+    },
+    {
+      "playerId": "20260722220316-xpb14y-005",
+      "roundPick": "5.10",
+      "pick": 58,
+      "player": "B. Irving",
+      "position": "RB",
+      "team": "TB",
+      "byeWeek": 10
+    },
+    {
+      "playerId": "20260722220316-xpb14y-006",
+      "roundPick": "6.3",
+      "pick": 63,
+      "player": "P. Washington",
+      "position": "WR",
+      "team": "JAX",
+      "byeWeek": 7
+    },
+    {
+      "playerId": "20260722220316-xpb14y-007",
+      "roundPick": "7.10",
+      "pick": 82,
+      "player": "T. Kraft",
+      "position": "TE",
+      "team": "GB",
+      "byeWeek": 11
+    },
+    {
+      "playerId": "20260722220316-xpb14y-008",
+      "roundPick": "8.3",
+      "pick": 87,
+      "player": "M. Pittman Jr.",
+      "position": "WR",
+      "team": "PIT",
+      "byeWeek": 9
+    },
+    {
+      "playerId": "20260722220316-xpb14y-009",
+      "roundPick": "9.10",
+      "pick": 106,
+      "player": "D. Kincaid",
+      "position": "TE",
+      "team": "BUF",
+      "byeWeek": 7
+    },
+    {
+      "playerId": "20260722220316-xpb14y-010",
+      "roundPick": "10.3",
+      "pick": 111,
+      "player": "K. Monangai",
+      "position": "RB",
+      "team": "CHI",
+      "byeWeek": 10
+    },
+    {
+      "playerId": "20260722220316-xpb14y-011",
+      "roundPick": "11.10",
+      "pick": 130,
+      "player": "J. Coker",
+      "position": "WR",
+      "team": "CAR",
+      "byeWeek": 5
+    },
+    {
+      "playerId": "20260722220316-xpb14y-012",
+      "roundPick": "12.3",
+      "pick": 135,
+      "player": "K. Mitchell",
+      "position": "RB",
+      "team": "LAC",
+      "byeWeek": 7
+    },
+    {
+      "playerId": "20260722220316-xpb14y-013",
+      "roundPick": "13.10",
+      "pick": 154,
+      "player": "J. Jennings",
+      "position": "WR",
+      "team": "MIN",
+      "byeWeek": 6
+    },
+    {
+      "playerId": "20260722220316-xpb14y-014",
+      "roundPick": "14.3",
+      "pick": 159,
+      "player": "A. Rodgers",
+      "position": "QB",
+      "team": "PIT",
+      "byeWeek": 9
+    },
+    {
+      "playerId": "20260722220316-xpb14y-015",
+      "roundPick": "15.10",
+      "pick": 178,
+      "player": "R. Davis",
+      "position": "RB",
+      "team": "BUF",
+      "byeWeek": 7
+    },
+    {
+      "playerId": "20260722220316-xpb14y-016",
+      "roundPick": "16.3",
+      "pick": 183,
+      "player": "G. Bernard",
+      "position": "WR",
+      "team": "PIT",
+      "byeWeek": 9
+    },
+    {
+      "playerId": "20260722220316-xpb14y-017",
+      "roundPick": "17.10",
+      "pick": 202,
+      "player": "P. Freiermuth",
+      "position": "TE",
+      "team": "PIT",
+      "byeWeek": 9
+    },
+    {
+      "playerId": "20260722220316-xpb14y-018",
+      "roundPick": "18.3",
+      "pick": 207,
+      "player": "N. Singleton",
+      "position": "RB",
+      "team": "TEN",
+      "byeWeek": 9
+    },
+    {
+      "playerId": "20260722220316-xpb14y-019",
+      "roundPick": "19.10",
+      "pick": 226,
+      "player": "O. Gordon II",
+      "position": "RB",
+      "team": "MIA",
+      "byeWeek": 6
+    },
+    {
+      "playerId": "20260722220316-xpb14y-020",
+      "roundPick": "20.3",
+      "pick": 231,
+      "player": "D. Knox",
+      "position": "TE",
+      "team": "BUF",
+      "byeWeek": 7
+    }
+  ]
+}
 ]
